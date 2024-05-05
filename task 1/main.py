@@ -1,36 +1,39 @@
 import logging
 from psycopg2 import DatabaseError
+from connection import connect
+from insert_generation import insert_users,insert_status,insert_tasks
 
-from connect_pg import connect
-
-
-def create_table(conn, sql_stmt: str):
-    cursor = conn.cursor()
+#Read sql file and do query
+def sql_create(cnct, sqt_file: str):
+    crs = cnct.cursor()
     try:
-        cursor.execute(sql_stmt)
-        conn.commit()
+        with open(sqt_file, 'r') as f:
+            sql_statements = f.read()
+        crs.execute(sql_statements)
+        cnct.commit()
     except DatabaseError as e:
         logging.error(e)
-        conn.rollback()
+        cnct.rollback()
+    
+#Do three guery to create tables - users, status and tasks
+def sql_insert(cnct):
+    crs = cnct.cursor()
+    try:
+        insert_users(crs, cnct)
+        insert_status(crs, cnct)
+        insert_tasks(crs, cnct)
     finally:
-        cursor.close()
+        crs.close()
 
-
+        
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
+    sql_file_path = "create_tables.sql"
 
-    stmt = """
-    CREATE TABLE IF NOT EXISTS contacts (
-      id SERIAL PRIMARY KEY,
-      name VARCHAR(130),
-      email VARCHAR(130),
-      phone VARCHAR(130),
-      age smallint CHECK (age > 0 AND age < 120)
-    );
-    """
-
-    try:
-        with connect() as conn:
-            create_table(conn, stmt)
-    except RuntimeError as e:
-        logging.error(e)
+    with connect() as cnct:
+        try:
+            with cnct.cursor() as crs:
+                sql_create(cnct, sql_file_path)
+                sql_insert(cnct)
+        except DatabaseError as e:
+            logging.error(e)
